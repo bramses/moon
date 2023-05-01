@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
@@ -15,6 +17,16 @@ import (
 type Config struct {
 	TargetLanguage string `json:"targetLanguage"`
 }
+
+type Phase int
+
+const (
+	Phase0 Phase = iota
+	Phase1
+	Phase2
+	Phase3
+	Phase4
+)
 
 func main() {
 	var configFile string
@@ -82,19 +94,104 @@ func main() {
 		},
 	}
 
+	var fromPhase, toPhase string
+
+	customCmd := &cobra.Command{
+		Use:   "custom",
+		Short: "Execute or list custom commands from the global configuration",
+		Run: func(cmd *cobra.Command, args []string) {
+			filteredCommands, err := filterCustomCommands(fromPhase, toPhase)
+			if err != nil {
+				fmt.Println("Error:", err)
+				return
+			}
+
+			if len(args) == 0 {
+				fmt.Println("Custom commands:")
+				for _, command := range filteredCommands {
+					fmt.Printf("- %s: %s\n", command.Name, command.Description)
+				}
+				return
+			}
+
+			commandName := args[0]
+			var commandConfig *CommandConfig = nil
+
+			for _, c := range filteredCommands {
+				if c.Name == commandName {
+					commandConfig = &c
+					break
+				}
+			}
+
+			if commandConfig == nil {
+				fmt.Println("Command not found:", commandName)
+				return
+			}
+
+			processCustomCommand(*commandConfig)
+		},
+	}
+
+	customCmd.Flags().StringVar(&fromPhase, "1", "", "Filter custom commands with from phase 1")
+	customCmd.Flags().StringVar(&fromPhase, "2", "", "Filter custom commands with from phase 2")
+	customCmd.Flags().StringVar(&fromPhase, "3", "", "Filter custom commands with from phase 3")
+	customCmd.Flags().StringVar(&fromPhase, "4", "", "Filter custom commands with from phase 4")
+	customCmd.Flags().StringVar(&toPhase, "to-2", "", "Filter custom commands with to phase 2")
+	customCmd.Flags().StringVar(&toPhase, "to-3", "", "Filter custom commands with to phase 3")
+	customCmd.Flags().StringVar(&toPhase, "to-4", "", "Filter custom commands with to phase 4")
+
 	app.PersistentFlags().StringVarP(&configFile, "config", "c", "config.local.json", "configuration file")
-	app.AddCommand(initCmd, commitCmd, configCmd, commitAllCmd, readfileCmd, listFilesCmd)
+	app.AddCommand(initCmd, commitCmd, configCmd, commitAllCmd, readfileCmd, listFilesCmd, customCmd)
 
 	app.Execute()
 }
 
+func (p Phase) Emoji() string {
+	switch p {
+	case Phase0:
+		return "🌑"
+	case Phase1:
+		return "🌒"
+	case Phase2:
+		return "🌓"
+	case Phase3:
+		return "🌔"
+	case Phase4:
+		return "🌕"
+	default:
+		return ""
+	}
+}
+
+func (p Phase) Folder() string {
+	switch p {
+	case Phase0:
+		return "phase0"
+	case Phase1:
+		return "phase1"
+	case Phase2:
+		return "phase2"
+	case Phase3:
+		return "phase3"
+	case Phase4:
+		return "phase4"
+	default:
+		return ""
+	}
+}
+
+func (p Phase) IsEmoji(emoji string) bool {
+	return p.Emoji() == emoji
+}
+
 func initProject() {
 	// create folders and files
-	os.Mkdir("phase0", os.ModePerm)
-	os.Mkdir("phase1", os.ModePerm)
-	os.Mkdir("phase2", os.ModePerm)
-	os.Mkdir("phase3", os.ModePerm)
-	os.Mkdir("phase4", os.ModePerm)
+	os.Mkdir("🌑", os.ModePerm)
+	os.Mkdir("🌒", os.ModePerm)
+	os.Mkdir("🌓", os.ModePerm)
+	os.Mkdir("🌔", os.ModePerm)
+	os.Mkdir("🌕", os.ModePerm)
 
 	// create config file
 	config := Config{TargetLanguage: "go"}
@@ -184,17 +281,19 @@ type FileNode struct {
 	Children []*FileNode
 }
 
-func listFilesAndFolders(folder string) {
+func listFilesAndFolders(folder string) string {
 	rootNode, err := buildFileTree(folder, "")
 	if err != nil {
 		fmt.Println("Error:", err)
-		return
+		return ""
 	}
 
 	selectedNode := selectFileNode(rootNode)
 	if selectedNode != nil {
 		fmt.Println("Selected file:", selectedNode.Name)
 	}
+
+	return selectedNode.Name
 }
 
 func buildFileTree(path, prefix string) (*FileNode, error) {
@@ -247,34 +346,126 @@ func selectFileNode(node *FileNode) *FileNode {
 	return selectFileNode(node.Children[index])
 }
 
-func listFilesInFolder(folder string) {
-	// Read the folder content
-	files, err := ioutil.ReadDir(folder)
+// func listFilesAndFolders(folder string) string {
+// 	// Read the folder content
+// 	files, err := ioutil.ReadDir(folder)
+// 	if err != nil {
+// 		fmt.Println("Error:", err)
+// 		return ""
+// 	}
+
+// 	// Collect file names
+// 	fileNames := []string{}
+// 	for _, file := range files {
+// 		if !file.IsDir() {
+// 			fileNames = append(fileNames, file.Name())
+// 		}
+// 	}
+
+// 	// Show dropdown with file names
+// 	prompt := promptui.Select{
+// 		Label: "Select a file",
+// 		Items: fileNames,
+// 	}
+
+// 	_, fileName, err := prompt.Run()
+// 	if err != nil {
+// 		fmt.Println("Error:", err)
+// 		return ""
+// 	}
+
+// 	// Print the selected file name
+// 	fmt.Println("Selected file:", fileName)
+// 	return fileName
+// }
+
+type CommandConfig struct {
+	From        string `json:"from"`
+	To          string `json:"to"`
+	Command     string `json:"command"`
+	Prompt      bool   `json:"prompt"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+type GlobalConfig struct {
+	Commands []CommandConfig `json:"commands"`
+}
+
+func loadGlobalConfig() (GlobalConfig, error) {
+	var config GlobalConfig
+
+	data, err := ioutil.ReadFile("global.json")
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		return config, err
 	}
 
-	// Collect file names
-	fileNames := []string{}
-	for _, file := range files {
-		if !file.IsDir() {
-			fileNames = append(fileNames, file.Name())
+	err = json.Unmarshal(data, &config)
+	return config, err
+}
+
+func processCustomCommand(commandConfig CommandConfig) {
+	command := commandConfig.Command
+
+	if commandConfig.Prompt {
+		// Handle user_prompt
+		inputPrompt := promptui.Prompt{
+			Label: "Type your input",
+		}
+		userInput, err := inputPrompt.Run()
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+
+		command = strings.ReplaceAll(command, "{user_prompt}", userInput)
+	}
+
+	// Handle phase_x__file_select
+	r := regexp.MustCompile(`{phase_(\d)__file_select}`)
+	matches := r.FindAllStringSubmatch(command, -1)
+
+	for _, match := range matches {
+		phase := match[1]
+		folder := "phase" + phase
+		selectedFile := listFilesAndFolders(folder)
+
+		// Replace the phase_x__file_select with the selected file's content
+		// NOTE: Replace 'selectedFile' with the selected file path from the listFilesAndFolders function
+		fileContent, err := ioutil.ReadFile(selectedFile)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+
+		command = strings.ReplaceAll(command, match[0], string(fileContent))
+	}
+
+	// Print the final command
+	fmt.Println(command)
+}
+
+func filterCustomCommands(fromPhase, toPhase string) ([]CommandConfig, error) {
+	config, err := loadGlobalConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// convert phase number to string
+	fromPhase = "phase" + fromPhase
+	toPhase = "phase" + toPhase
+
+	var filteredCommands []CommandConfig
+	for _, command := range config.Commands {
+		println(command.From)
+		println(command.To)
+		println(fromPhase)
+		println(toPhase)
+		println(command.From == fromPhase && (toPhase == "" || command.To == toPhase))
+		if command.From == fromPhase && (toPhase == "" || command.To == toPhase) {
+			filteredCommands = append(filteredCommands, command)
 		}
 	}
 
-	// Show dropdown with file names
-	prompt := promptui.Select{
-		Label: "Select a file",
-		Items: fileNames,
-	}
-
-	_, fileName, err := prompt.Run()
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-
-	// Print the selected file name
-	fmt.Println("Selected file:", fileName)
+	return filteredCommands, nil
 }

@@ -1,0 +1,21 @@
+{
+	"commands": [
+		{
+			"from": "phase1",
+			"to": "phase3",
+			"command": "{user_prompt} {phase_1__file_select} and ```\n{phase_3__file_select}\n```",
+			"prompt": true,
+            "name": "free-prompt 🌒 > 🌔",
+            "description": "anything from 🌒 > 🌔"
+        },
+        {
+            "from": "phase3",
+            "to": "phase3",
+            "command": "{user_prompt} {phase_3__file_select}",
+            "prompt": true,
+            "name": "chat with file in 🌔",
+            "description": "create a file in 🌔/chats and use a source file from filepicker"
+        }
+	]
+
+}
