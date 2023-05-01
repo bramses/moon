@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "moon"
+version = "0.1.0"
+description = "a cli app to turn anything into a function"
+authors = ["Bram Adams <3282661+bramses@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+click = "^8.1.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
