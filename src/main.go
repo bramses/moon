@@ -253,19 +253,19 @@ func displayCommands(commands []Command) *Command {
 
 func executeCommand(command *Command, parentFolder string, phase string) {
 	// Get user inputs and put them into the command template
-	interpolatedTitle, interpolatedContent := interpolateCommand(command.Command, parentFolder)
+	interpolatedCommand, interpolatedTitle := interpolateCommand(command.Command, parentFolder)
 
-	println(interpolatedTitle)
-	println(interpolatedContent)
+	println("title: ", interpolatedTitle)
+	println("content: ", interpolatedCommand)
 	// Call the LLM API (or any other external function)
 	// This is a placeholder function and should be replaced with the actual API call
-	response := callLLM(interpolatedContent)
+	response := callLLM(interpolatedCommand)
 
 	// Generate the inferred title
 	inferredTitle := time.Now().Format("20060102150405") + ".md"
 
 	// Get the title from the LLM API
-	summary := callLLM("Summarize the following into a short file name: " + response)
+	summary := callLLM(interpolatedTitle)
 	if summary != "" {
 		inferredTitle = summary + ".md"
 	}
@@ -278,9 +278,14 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 	userPromptRegex := regexp.MustCompile(`\{user_prompt\}`)
 	phasePickerRegex := regexp.MustCompile(`\{phase_(\d+)__file_picker\}`)
 
+	titleString := command
+
 	for {
 		userPromptMatch := userPromptRegex.FindStringIndex(command)
 		phasePickerMatch := phasePickerRegex.FindStringSubmatchIndex(command)
+
+		titleUserPromptMatch := userPromptRegex.FindStringIndex(titleString)
+		titlePhasePickerMatch := phasePickerRegex.FindStringSubmatchIndex(titleString)
 
 		if userPromptMatch == nil && phasePickerMatch == nil {
 			break
@@ -289,10 +294,11 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 		if userPromptMatch != nil && (phasePickerMatch == nil || userPromptMatch[0] < phasePickerMatch[0]) {
 			userInput := promptUserInput()
 			command = command[:userPromptMatch[0]] + userInput + command[userPromptMatch[1]:]
+			titleString = titleString[:titleUserPromptMatch[0]] + userInput + titleString[titleUserPromptMatch[1]:]
 		} else if phasePickerMatch != nil {
 			phaseNumber := command[phasePickerMatch[2]:phasePickerMatch[3]]
 			selectedFile, selectedFilePath := promptPhaseFilePicker(phaseNumber, parentFolder)
-			command = command[:phasePickerMatch[0]] + selectedFile + command[phasePickerMatch[1]:]
+			// command = command[:phasePickerMatch[0]] + selectedFile + command[phasePickerMatch[1]:]
 
 			content, err := ioutil.ReadFile(selectedFilePath)
 			if err != nil {
@@ -300,24 +306,34 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 				return "", ""
 			}
 
-			return command, string(content)
+			command = command[:phasePickerMatch[0]] + string(content) + command[phasePickerMatch[1]:]
+
+			// replace {phase_NUMBER__file_picker} with the selected file name
+			titleString = titleString[:titlePhasePickerMatch[0]] + selectedFile + titleString[titlePhasePickerMatch[1]:]
+
+			// print("title check:")
+			// println(titleString)
+			// println(phasePickerMatch[0])
+			// println(phasePickerMatch[1])
+			// println(selectedFile)
+			// titleString = titleString[:phasePickerMatch[0]] + selectedFile + titleString[phasePickerMatch[1]:]
 		}
 	}
 
-	return command, ""
+	return command, titleString
 }
 
-func promptPhaseFilePicker(phaseNumber, parentFolder string) string {
+func promptPhaseFilePicker(phaseNumber, parentFolder string) (string, string) {
 	folderName := phaseFolderName(phaseNumber)
 	if folderName == "" {
-		return ""
+		return "", ""
 	}
 
 	phaseFolderPath := filepath.Join(parentFolder, folderName)
 	files, err := ioutil.ReadDir(phaseFolderPath)
 	if err != nil {
 		fmt.Printf("Error reading phase folder: %v\n", err)
-		return ""
+		return "", ""
 	}
 
 	fileList := []string{}
@@ -335,10 +351,10 @@ func promptPhaseFilePicker(phaseNumber, parentFolder string) string {
 	_, selectedFile, err := prompt.Run()
 	if err != nil {
 		fmt.Printf("Prompt failed %v\n", err)
-		return ""
+		return "", ""
 	}
 
-	return selectedFile
+	return selectedFile, filepath.Join(phaseFolderPath, selectedFile)
 }
 
 func phaseFolderName(phaseNumber string) string {
