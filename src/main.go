@@ -123,6 +123,10 @@ var phaseCmd = &cobra.Command{
 func phase(cmd *cobra.Command, args []string) {
 	from, _ := cmd.Flags().GetInt("from")
 	to, _ := cmd.Flags().GetInt("to")
+	parentFolder, _ := cmd.Flags().GetString("parentFolder")
+	if parentFolder == "" {
+		parentFolder = "."
+	}
 
 	if from == 0 || to == 0 {
 		fmt.Println("Please provide --from and --to flags with valid phase numbers (1, 2, 3, 4)")
@@ -145,7 +149,9 @@ func phase(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	executeCommand(selectedCommand)
+	strTo := strconv.Itoa(to)
+
+	executeCommand(selectedCommand, parentFolder, strTo)
 }
 
 // orbitCmd
@@ -159,6 +165,12 @@ func orbit(cmd *cobra.Command, args []string) {
 	if len(args) == 0 {
 		fmt.Println("Please provide a valid orbit number (1, 2, 3, 4)")
 		return
+	}
+
+	// flag --parentFolder optional current folder if not provided
+	parentFolder, _ := cmd.Flags().GetString("parentFolder")
+	if parentFolder == "" {
+		parentFolder = "."
 	}
 
 	number, err := strconv.Atoi(args[0])
@@ -183,7 +195,7 @@ func orbit(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	executeCommand(selectedCommand)
+	executeCommand(selectedCommand, parentFolder, args[0])
 }
 
 func init() {
@@ -192,7 +204,9 @@ func init() {
 	chatCmd.Flags().String("file", "", "File to chat with")
 	phaseCmd.Flags().Int("from", 0, "From phase (1, 2, 3, 4)")
 	phaseCmd.Flags().Int("to", 0, "To phase (1, 2, 3, 4)")
+	phaseCmd.Flags().String("parentFolder", "", "Parent folder")
 	orbitCmd.Flags().Int("number", 0, "Orbit number (1, 2, 3, 4)")
+	orbitCmd.Flags().String("parentFolder", "", "Parent folder")
 }
 
 func filterCommands(commands []Command, from, to int) []Command {
@@ -237,13 +251,15 @@ func displayCommands(commands []Command) *Command {
 	return &commands[index]
 }
 
-func executeCommand(command *Command) {
+func executeCommand(command *Command, parentFolder string, phase string) {
 	// Get user inputs and put them into the command template
-	interpolatedCommand := interpolateCommand(command.Command)
+	interpolatedTitle, interpolatedContent := interpolateCommand(command.Command, parentFolder)
 
+	println(interpolatedTitle)
+	println(interpolatedContent)
 	// Call the LLM API (or any other external function)
 	// This is a placeholder function and should be replaced with the actual API call
-	response := callLLM(interpolatedCommand)
+	response := callLLM(interpolatedContent)
 
 	// Generate the inferred title
 	inferredTitle := time.Now().Format("20060102150405") + ".md"
@@ -255,10 +271,10 @@ func executeCommand(command *Command) {
 	}
 
 	// Save the content to a file with the inferred title
-	saveToFile(inferredTitle, response, "test", "3")
+	saveToFile(inferredTitle, response, parentFolder, phase)
 }
 
-func interpolateCommand(command string) string {
+func interpolateCommand(command string, parentFolder string) (string, string) {
 	userPromptRegex := regexp.MustCompile(`\{user_prompt\}`)
 	phasePickerRegex := regexp.MustCompile(`\{phase_(\d+)__file_picker\}`)
 
@@ -275,18 +291,41 @@ func interpolateCommand(command string) string {
 			command = command[:userPromptMatch[0]] + userInput + command[userPromptMatch[1]:]
 		} else if phasePickerMatch != nil {
 			phaseNumber := command[phasePickerMatch[2]:phasePickerMatch[3]]
-			selectedFile := promptPhaseFilePicker(phaseNumber)
-			folderName := phaseFolderName(phaseNumber)
-			command = command[:phasePickerMatch[0]] + folderName + "-" + selectedFile + command[phasePickerMatch[1]:]
+			selectedFile, selectedFilePath := promptPhaseFilePicker(phaseNumber, parentFolder)
+			command = command[:phasePickerMatch[0]] + selectedFile + command[phasePickerMatch[1]:]
+
+			content, err := ioutil.ReadFile(selectedFilePath)
+			if err != nil {
+				fmt.Printf("Error reading file: %v\n", err)
+				return "", ""
+			}
+
+			return command, string(content)
 		}
 	}
 
-	return command
+	return command, ""
 }
 
-func promptPhaseFilePicker(phaseNumber string) string {
-	// Replace this list with actual file names from the specified phase
-	fileList := []string{"file1.md", "file2.md", "file3.md"}
+func promptPhaseFilePicker(phaseNumber, parentFolder string) string {
+	folderName := phaseFolderName(phaseNumber)
+	if folderName == "" {
+		return ""
+	}
+
+	phaseFolderPath := filepath.Join(parentFolder, folderName)
+	files, err := ioutil.ReadDir(phaseFolderPath)
+	if err != nil {
+		fmt.Printf("Error reading phase folder: %v\n", err)
+		return ""
+	}
+
+	fileList := []string{}
+	for _, file := range files {
+		if !file.IsDir() {
+			fileList = append(fileList, file.Name())
+		}
+	}
 
 	prompt := promptui.Select{
 		Label: "Select a file from phase " + phaseNumber,
@@ -304,15 +343,15 @@ func promptPhaseFilePicker(phaseNumber string) string {
 
 func phaseFolderName(phaseNumber string) string {
 	switch phaseNumber {
-	case "1":
+	case "0":
 		return "🌑"
-	case "2":
+	case "1":
 		return "🌒"
-	case "3":
+	case "2":
 		return "🌓"
-	case "4":
+	case "3":
 		return "🌔"
-	case "5":
+	case "4":
 		return "🌕"
 	default:
 		return ""

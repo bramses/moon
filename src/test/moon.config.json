@@ -10,7 +10,7 @@
 		},
 		{
 			"from": 1,
-			"to": 3,
+			"to": 2,
 			"command": "blah blah {user_prompt} {phase3.md} {phase1.md}",
 			"prompt": true,
 			"name": "blah",
