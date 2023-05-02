@@ -1,0 +1,33 @@
+{
+	"commands": [
+		{
+			"from": 1,
+			"to": 3,
+			"command": "blah blah {user_prompt} {phase3.md} {phase1.md}",
+			"prompt": true,
+			"name": "blah",
+			"description": "this is a long description for blah"
+		},
+		{
+			"from": 1,
+			"to": 3,
+			"command": "blah blah {user_prompt} {phase3.md} {phase1.md}",
+			"prompt": true,
+			"name": "blah",
+			"description": "this is a long description for blah"
+		},
+		{
+			"orbit": 1,
+			"command": "blah blah {user_prompt} {phase3.md} {phase1.md}",
+			"prompt": true,
+			"name": "blah",
+			"description": "this is a long description for blah"
+		},
+		{
+			"orbit": 2,
+			"command": "write a fix for {user_prompt}",
+			"name": "name",
+			"description": "fixes x,y,z"
+		}
+	]
+}

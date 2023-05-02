@@ -1,0 +1,41 @@
+{
+	"commands": [
+		{
+			"from": 1,
+			"to": 3,
+			"command": "blah blah {user_prompt} {phase_3__file_picker} {phase_1__file_picker}",
+			"prompt": true,
+			"name": "blah",
+			"description": "blah blah {user_prompt} {phase_3__file_picker} {phase_1__file_picker}"
+		},
+		{
+			"from": 1,
+			"to": 3,
+			"command": "blah blah {phase_1__file_picker}",
+			"prompt": true,
+			"name": "blah 2",
+			"description": "blah blah {phase_1__file_picker}"
+		},
+		{
+			"from": 1,
+			"to": 3,
+			"command": "blah blah {user_prompt}",
+			"prompt": true,
+			"name": "blah 3",
+			"description": "blah blah {user_prompt}"
+		},
+		{
+			"orbit": 1,
+			"command": "blah blah {user_prompt} {phase_1__file_picker}",
+			"prompt": true,
+			"name": "blah",
+			"description": "this is a long description for blah"
+		},
+		{
+			"orbit": 2,
+			"command": "write a fix for {user_prompt}",
+			"name": "name",
+			"description": "fixes x,y,z"
+		}
+	]
+}

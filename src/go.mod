@@ -1,4 +1,4 @@
-module llm-cli
+module moon
 
 go 1.16
 
