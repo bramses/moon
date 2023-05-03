@@ -255,23 +255,32 @@ func executeCommand(command *Command, parentFolder string, phase string) {
 	// Get user inputs and put them into the command template
 	interpolatedCommand, interpolatedTitle := interpolateCommand(command.Command, parentFolder)
 
-	println("title: ", interpolatedTitle)
-	println("content: ", interpolatedCommand)
+	// println(interpolatedCommand)
 	// Call the LLM API (or any other external function)
 	// This is a placeholder function and should be replaced with the actual API call
-	response := callLLM(interpolatedCommand)
+	// response := callLLM(interpolatedCommand)
+	var fullres = ssereq(interpolatedCommand)
 
+	println(fullres)
 	// Generate the inferred title
 	inferredTitle := time.Now().Format("20060102150405") + ".md"
 
 	// Get the title from the LLM API
-	summary := callLLM(interpolatedTitle)
+	summary := ssereq("Summarize the following into a file name: " + fullres)
+
+	yaml := "---\n" +
+		"title: " + summary + "\n" +
+		"phase: " + phase + "\n" +
+		"command: " + interpolatedTitle + "\n" +
+		"time: " + time.Now().Format("2006-01-02 15:04:05") + "\n" +
+		"---\n\n"
+
 	if summary != "" {
 		inferredTitle = summary + ".md"
 	}
 
 	// Save the content to a file with the inferred title
-	saveToFile(inferredTitle, response, parentFolder, phase)
+	saveToFile(inferredTitle, yaml+fullres, parentFolder, phase)
 }
 
 func interpolateCommand(command string, parentFolder string) (string, string) {
@@ -310,13 +319,6 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 
 			// replace {phase_NUMBER__file_picker} with the selected file name
 			titleString = titleString[:titlePhasePickerMatch[0]] + selectedFile + titleString[titlePhasePickerMatch[1]:]
-
-			// print("title check:")
-			// println(titleString)
-			// println(phasePickerMatch[0])
-			// println(phasePickerMatch[1])
-			// println(selectedFile)
-			// titleString = titleString[:phasePickerMatch[0]] + selectedFile + titleString[phasePickerMatch[1]:]
 		}
 	}
 
