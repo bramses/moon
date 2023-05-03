@@ -1,4 +1,11 @@
 {
+	"descriptions": {
+		"0": "Phase 0 description",
+		"1": "Phase 1 description",
+		"2": "Phase 2 description",
+		"3": "Phase 3 description",
+		"4": "Phase 4 description"
+	},
 	"commands": [
 		{
 			"from": 1,

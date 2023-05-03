@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -15,7 +17,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var earlyReturnFlag = false
+
 func main() {
+	catchCTRLC()
 	var rootCmd = &cobra.Command{
 		Use:   "moon",
 		Short: "Moon is a CLI tool for using LLMs to phase ideas to programs",
@@ -120,6 +125,16 @@ var phaseCmd = &cobra.Command{
 	Use:   "phase",
 	Short: "Manage phases",
 	Run:   phase,
+}
+
+func catchCTRLC() {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-signalChan
+		earlyReturnFlag = true
+		fmt.Println("\nCTRL-C detected. Returning early...")
+	}()
 }
 
 func phase(cmd *cobra.Command, args []string) {
@@ -246,6 +261,9 @@ func displayCommands(commands []Command) *Command {
 	index, _, err := prompt.Run()
 
 	if err != nil {
+		if err == promptui.ErrInterrupt {
+			os.Exit(-1)
+		}
 		fmt.Printf("Prompt failed %v\n", err)
 		return nil
 	}
@@ -254,8 +272,14 @@ func displayCommands(commands []Command) *Command {
 }
 
 func executeCommand(command *Command, parentFolder string, phase string) {
+
 	// Get user inputs and put them into the command template
 	interpolatedCommand, interpolatedTitle := interpolateCommand(command.Command, parentFolder)
+
+	println("early ", earlyReturnFlag)
+	if earlyReturnFlag {
+		os.Exit(1)
+	}
 
 	// println(interpolatedCommand)
 	// Call the LLM API (or any other external function)
@@ -285,6 +309,9 @@ func executeCommand(command *Command, parentFolder string, phase string) {
 }
 
 func interpolateCommand(command string, parentFolder string) (string, string) {
+	println("command ", command)
+	catchCTRLC()
+
 	commandHandlers := []struct {
 		regex   *regexp.Regexp
 		handler func(string) (string, error)
@@ -325,6 +352,7 @@ func handleUserPrompt(_ string) (string, error) {
 }
 
 func handlePhasePicker(match string, parentFolder string) (string, error) {
+
 	phasePickerRegex := regexp.MustCompile(`\{phase_(\d+)__file_picker\}`)
 	phasePickerMatch := phasePickerRegex.FindStringSubmatch(match)
 	phaseNumber := phasePickerMatch[1]
@@ -378,6 +406,9 @@ func promptPhaseFilePicker(phaseNumber, parentFolder string) (string, string) {
 
 	_, selectedFile, err := prompt.Run()
 	if err != nil {
+		if err == promptui.ErrInterrupt {
+			os.Exit(-1)
+		}
 		fmt.Printf("Prompt failed %v\n", err)
 		return "", ""
 	}
@@ -414,6 +445,9 @@ func promptUserInput() string {
 
 	result, err := prompt.Run()
 	if err != nil {
+		if err == promptui.ErrInterrupt {
+			os.Exit(-1)
+		}
 		fmt.Printf("Prompt failed %v\n", err)
 		return ""
 	}
