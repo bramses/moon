@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -84,14 +83,14 @@ func ssereq(prompt string) string {
 	defer file.Close()
 
 	// Get the current working directory and construct the file path
-	wd, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Error getting current working directory: %v", err)
-	}
-	filePath := filepath.Join(wd, "tokens.txt")
+	// wd, err := os.Getwd()
+	// if err != nil {
+	// 	log.Fatalf("Error getting current working directory: %v", err)
+	// }
 
+	// filePath := filepath.Join(wd, "tokens.txt")
 	// Print the file path as a clickable link
-	fmt.Printf("Tokens will be written to the following file: file://%s\n", filePath)
+	// fmt.Printf("Tokens will be written to the following file: file://%s\n", filePath)
 
 	// full text
 	var fulltext string
@@ -144,7 +143,9 @@ func ssereq(prompt string) string {
 		}
 	}
 
-	fmt.Println("Tokens written to file successfully.")
+	fmt.Println("done")
+
+	// fmt.Println("Tokens written to file successfully.")
 
 	return fulltext
 }

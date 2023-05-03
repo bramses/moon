@@ -4,7 +4,7 @@
 		{ "phase": 1, "description": "Phase 1 description"},
 		{ "phase": 2, "description": "Phase 2 description"},
 		{ "phase": 3, "description": "Phase 3 description"},
-		{ "phase": 4, "description": "Phase 4 description"}
+		{ "phase": 4, "description": "docs testing"}
 	],
 	"commands": [
 		{
@@ -30,6 +30,22 @@
 			"prompt": true,
 			"name": "blah 3",
 			"description": "blah blah {user_prompt}"
+		},
+		{
+			"from": 2,
+			"to": 3,
+			"command": "using the following algorithm\n\n Algorithm: \n\n{phase_2__file_picker}\n\nwrite in js. JS impl:\n\n",
+			"prompt": true,
+			"name": "cf algo",
+			"description": "algo from file"
+		},
+		{
+			"from": 3,
+			"to": 1,
+			"command": "look at this code\n {phase_3__file_picker} and write a potential fix in github issue format for {user_prompt}",
+			"prompt": true,
+			"name": "issue",
+			"description": "issue {user_prompt}"
 		},
 		{
 			"orbit": 1,
@@ -75,6 +91,18 @@
 			"description": "custom prompt (with file picker)"
 		},
 		{
+			"orbit": 1,
+			"command": "what are the character similarites and differences between these two stories in md table format: {phase_1__file_picker} \nand\n {phase_1__file_picker}",
+			"name": "character similarities",
+			"description": "two files, one table"
+		},
+		{
+			"orbit": 1,
+			"command": "{user_prompt} {clipboard}",
+			"name": "custom_prompt clipboard",
+			"description": "custom prompt (with clipboard)"
+		},
+		{
 			"orbit": 2,
 			"command": "{user_prompt} {phase_2__file_picker}",
 			"name": "custom_prompt fp",
@@ -93,8 +121,8 @@
 			"description": "custom prompt (with file picker)"
 		},
 		{
-			"orbit": 1,
-			"command": "{user_prompt} {clipboard}",
+			"orbit": 3,
+			"command": "{user_prompt} {clipboard} with the context of:\n {phase_3__file_picker}",
 			"name": "clipboard",
 			"description": "custom prompt (with clipboard)"
 		},
@@ -113,6 +141,14 @@
 			"prompt": true,
 			"name": "custom_prompt",
 			"description": "custom prompt"
+		},
+		{
+			"from": 2,
+			"to": 3,
+			"command": "write the following algorithm in node js\n {phase_2__file_picker}",
+			"prompt": true,
+			"name": "algorithm in node js",
+			"description": "takes a file picker"
 		},
 		{
 			"from":3,

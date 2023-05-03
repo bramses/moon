@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -9,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,7 +17,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var earlyReturnFlag = false
+var (
+	earlyReturnFlag = false
+	openAPIKey      string
+	envVar          string
+)
 
 func main() {
 	catchCTRLC()
@@ -26,10 +30,61 @@ func main() {
 		Short: "Moon is a CLI tool for using LLMs to phase ideas to programs",
 	}
 
-	rootCmd.AddCommand(newCmd, chatCmd, phaseCmd, orbitCmd, explainCmd)
+	rootCmd.PersistentFlags().StringVar(&openAPIKey, "openAPIKey", "", "OPENAI API KEY [Required]")
+	if env := os.Getenv("OPENAI_API_KEY"); env != "" {
+		envVar = env
+		rootCmd.PersistentFlags().Set("openAPIKey", envVar)
+	}
+
+	rootCmd.AddCommand(newCmd, phaseCmd, orbitCmd, explainCmd, readMeCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+}
+
+// readMeCmd
+var readMeCmd = &cobra.Command{
+	Use:   "readMe",
+	Short: "Read all files in the directory",
+	Run:   readMe,
+}
+
+func readMe(cmd *cobra.Command, args []string) {
+
+	parentFolder, _ := cmd.Flags().GetString("parentFolder")
+	if parentFolder == "" { // set to os.Getwd() if empty
+		parentFolder, _ = os.Getwd()
+	}
+
+	readmeStr := ""
+
+	err := filepath.Walk(parentFolder, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			content, err := ioutil.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("running on %s \n", content)
+			// fmt.Printf("%s: %s \n", path, content)
+			res := ssereq("Summarize the file in README format: {h1 - title of file}\\n {summary of file content} for this content:\n" + string(content))
+			readmeStr += fmt.Sprintf("# %s\n%s\n", info.Name(), res)
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("Error walking the directory: %v\n", err)
+		return
+	}
+
+	// write to file parentFolder/README.md
+	err = ioutil.WriteFile(parentFolder+"/README.md", []byte(readmeStr), 0644)
+	if err != nil {
+		fmt.Printf("Error writing to file: %v\n", err)
+		return
 	}
 }
 
@@ -272,6 +327,7 @@ func init() {
 	phaseCmd.Flags().String("parentFolder", "", "Parent folder")
 	orbitCmd.Flags().Int("number", 0, "Orbit number (1, 2, 3, 4)")
 	orbitCmd.Flags().String("parentFolder", "", "Parent folder")
+	readMeCmd.Flags().String("parentFolder", "", "Parent folder")
 }
 
 func filterCommands(commands []Command, from, to int) []Command {
@@ -344,7 +400,7 @@ func executeCommand(command *Command, parentFolder string, phase string) {
 	yaml := "---\n" +
 		"title: " + summary + "\n" +
 		"phase: " + phase + "\n" +
-		"command: " + interpolatedTitle + "\n" +
+		"command: " + string(command.Command) + "\n" +
 		"time: " + time.Now().Format("2006-01-02 15:04:05") + "\n" +
 		"---\n\n"
 
@@ -387,7 +443,15 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 			}
 
 			command = command[:match[0]] + replacement + command[match[1]:]
-			titleString = titleString[:titleMatch[0]] + replacement + titleString[titleMatch[1]:]
+
+			// // if str starts with FILEPICKER, extract filename (before the ::)
+			if strings.HasPrefix(replacement, "FILEPICKER") {
+				// // get the filename
+				filename := strings.Split(replacement, "::")[1]
+				titleString = titleString[:titleMatch[0]] + filename + titleString[titleMatch[1]:]
+			} else {
+				titleString = titleString[:titleMatch[0]] + replacement + titleString[titleMatch[1]:]
+			}
 		}
 	}
 
@@ -407,15 +471,18 @@ func handlePhasePicker(match string, parentFolder string) (string, error) {
 
 	_, selectedFilePath := promptPhaseFilePicker(phaseNumber, parentFolder)
 
+	// title of the file
+	fileName := filepath.Base(selectedFilePath)
+
 	content, err := ioutil.ReadFile(selectedFilePath)
 	if err != nil {
 		return "", fmt.Errorf("error reading file: %w", err)
 	}
 
-	// remove yml from content
-	content = bytes.Replace(content, []byte("---\n"), []byte(""), 1)
+	// remove yml from content using regex
+	content = regexp.MustCompile(`(?m)^---\n(.|\n)*---\n`).ReplaceAll(content, []byte(""))
 
-	return string(content), nil
+	return "FILEPICKER" + fileName + "::" + string(content), nil
 }
 
 func handleClipboard(_ string) (string, error) {
