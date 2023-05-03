@@ -1,4 +1,11 @@
 {
+	"descriptions": [
+		{ "phase": 0, "description": "Phase 0 description"},
+		{ "phase": 1, "description": "Phase 1 description"},
+		{ "phase": 2, "description": "Phase 2 description"},
+		{ "phase": 3, "description": "Phase 3 description"},
+		{ "phase": 4, "description": "Phase 4 description"}
+	],
 	"commands": [
 		{
 			"from": 1,

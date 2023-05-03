@@ -26,11 +26,59 @@ func main() {
 		Short: "Moon is a CLI tool for using LLMs to phase ideas to programs",
 	}
 
-	rootCmd.AddCommand(newCmd, chatCmd, phaseCmd, orbitCmd)
+	rootCmd.AddCommand(newCmd, chatCmd, phaseCmd, orbitCmd, explainCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+// explainCmd
+var explainCmd = &cobra.Command{
+	Use:   "explain",
+	Short: "Explain the phases of a project (located in moon.config.json > descriptions)",
+	Run:   explain,
+}
+
+func explain(cmd *cobra.Command, args []string) {
+	config, err := ReadConfig("moon.config.json")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// "descriptions": {
+	// 	"0": "Phase 0 description",
+	// 	"1": "Phase 1 description",
+	// 	"2": "Phase 2 description",
+	// 	"3": "Phase 3 description",
+	// 	"4": "Phase 4 description"
+	// }
+
+	// loop through the descriptions keys and print them out use moon emoji for the phases
+	// 0: 🌑 Phase 0 description
+	// 1: 🌒 Phase 1 description
+	// 2: 🌓 Phase 2 description
+	// 3: 🌔 Phase 3 description
+	// 4: 🌕 Phase 4 description
+
+	for _, description := range config.Descriptions {
+
+		emoji := "🌑"
+		switch description.Phase {
+		case 1:
+			emoji = "🌒"
+		case 2:
+			emoji = "🌓"
+		case 3:
+			emoji = "🌔"
+		case 4:
+			emoji = "🌕"
+		}
+
+		fmt.Printf("%s: %s\n", emoji, description.Description)
+	}
+
 }
 
 // newCmd

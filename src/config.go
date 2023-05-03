@@ -17,7 +17,13 @@ type Command struct {
 }
 
 type Config struct {
-	Commands []Command `json:"commands"`
+	Commands     []Command     `json:"commands"`
+	Descriptions []Description `json:"descriptions"`
+}
+
+type Description struct {
+	Phase       int    `json:"phase"`
+	Description string `json:"description"`
 }
 
 func ReadConfig(file string) (Config, error) {
