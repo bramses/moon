@@ -36,6 +36,110 @@
 			"command": "write a fix for {user_prompt}",
 			"name": "name",
 			"description": "fixes x,y,z"
+		},
+		{
+			"orbit": 1,
+			"command": "{user_prompt}",
+			"name": "custom_prompt",
+			"description": "custom prompt"
+		},
+		{
+			"orbit": 2,
+			"command": "{user_prompt}",
+			"name": "custom_prompt",
+			"description": "custom prompt"
+		},
+		{
+			"orbit": 3,
+			"command": "{user_prompt}",
+			"name": "custom_prompt",
+			"description": "custom prompt"
+		},
+		{
+			"orbit": 4,
+			"command": "{user_prompt}",
+			"name": "custom_prompt",
+			"description": "custom prompt"
+		},
+		{
+			"orbit": 1,
+			"command": "{user_prompt} {phase_1__file_picker}",
+			"name": "custom_prompt fp",
+			"description": "custom prompt (with file picker)"
+		},
+		{
+			"orbit": 2,
+			"command": "{user_prompt} {phase_2__file_picker}",
+			"name": "custom_prompt fp",
+			"description": "custom prompt (with file picker)"
+		},
+		{
+			"orbit": 3,
+			"command": "{user_prompt} {phase_3__file_picker}",
+			"name": "custom_prompt fp",
+			"description": "custom prompt (with file picker)"
+		},
+		{
+			"orbit": 4,
+			"command": "{user_prompt} {phase_4__file_picker}",
+			"name": "custom_prompt fp",
+			"description": "custom prompt (with file picker)"
+		},
+		{
+			"from": 1,
+			"to": 2,
+			"command": "{user_prompt}",
+			"prompt": true,
+			"name": "custom_prompt",
+			"description": "custom prompt"
+		},
+		{
+			"from": 2,
+			"to": 3,
+			"command": "{user_prompt}",
+			"prompt": true,
+			"name": "custom_prompt",
+			"description": "custom prompt"
+		},
+		{
+			"from":3,
+			"to": 4,
+			"command": "{user_prompt}",
+			"prompt": true,
+			"name": "custom_prompt",
+			"description": "custom prompt"
+		},
+		{
+			"from": 1,
+			"to": 2,
+			"command": "{user_prompt} {phase_1__file_picker}",
+			"prompt": true,
+			"name": "custom_prompt fp",
+			"description": "custom prompt (with file picker)"
+		},
+		{
+			"from": 2,
+			"to": 3,
+			"command": "{user_prompt} {phase_2__file_picker}",
+			"prompt": true,
+			"name": "custom_prompt fp",
+			"description": "custom prompt (with file picker)"
+		},
+		{
+			"from":3,
+			"to": 4,
+			"command": "{user_prompt} {phase_3__file_picker}",
+			"prompt": true,
+			"name": "custom_prompt fp",
+			"description": "custom prompt (with file picker)"
+		},
+		{
+			"from": 2,
+			"to": 3,
+			"command": "make endpoints from {phase_2__file_picker} \n\n and write a server using \n\n {phase_2__file_picker}",
+			"prompt": true,
+			"name": "merger",
+			"description": "mergit!"
 		}
 	]
 }

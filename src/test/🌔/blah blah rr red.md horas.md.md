@@ -1,3 +1,8 @@
+---
+command: "blah blah rr red.md horas.md"
+time: "2021-10-20T15:00:00-07:00"
+---
+
 blah blah rr In order to change `interpolateCommand` to get the content from the `selectedFile`, you need to update the `promptPhaseFilePicker` function to return the file path along with the file name, and then read the content of the file in the `interpolateCommand` function. Here's the updated code:
 
 ```go

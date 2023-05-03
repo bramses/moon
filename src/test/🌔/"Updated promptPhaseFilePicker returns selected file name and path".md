@@ -1,0 +1,1 @@
+Great, the updated `promptPhaseFilePicker` function looks good. Now you can use the returned file path in the `interpolateCommand` function to replace the `{phase_file_path}` placeholder with the actual file path. Let me know if you need any help with that.
