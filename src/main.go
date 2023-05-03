@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
@@ -261,7 +263,6 @@ func executeCommand(command *Command, parentFolder string, phase string) {
 	// response := callLLM(interpolatedCommand)
 	var fullres = ssereq(interpolatedCommand)
 
-	println(fullres)
 	// Generate the inferred title
 	inferredTitle := time.Now().Format("20060102150405") + ".md"
 
@@ -284,45 +285,70 @@ func executeCommand(command *Command, parentFolder string, phase string) {
 }
 
 func interpolateCommand(command string, parentFolder string) (string, string) {
-	userPromptRegex := regexp.MustCompile(`\{user_prompt\}`)
-	phasePickerRegex := regexp.MustCompile(`\{phase_(\d+)__file_picker\}`)
+	commandHandlers := []struct {
+		regex   *regexp.Regexp
+		handler func(string) (string, error)
+	}{
+		{regexp.MustCompile(`\{user_prompt\}`), handleUserPrompt},
+		{regexp.MustCompile(`\{phase_(\d+)__file_picker\}`), func(match string) (string, error) { return handlePhasePicker(match, parentFolder) }},
+		{regexp.MustCompile(`\{clipboard\}`), handleClipboard},
+	}
 
 	titleString := command
 
-	for {
-		userPromptMatch := userPromptRegex.FindStringIndex(command)
-		phasePickerMatch := phasePickerRegex.FindStringSubmatchIndex(command)
+	for _, ch := range commandHandlers {
+		for {
+			match := ch.regex.FindStringIndex(command)
+			titleMatch := ch.regex.FindStringIndex(titleString)
 
-		titleUserPromptMatch := userPromptRegex.FindStringIndex(titleString)
-		titlePhasePickerMatch := phasePickerRegex.FindStringSubmatchIndex(titleString)
+			if match == nil {
+				break
+			}
 
-		if userPromptMatch == nil && phasePickerMatch == nil {
-			break
-		}
-
-		if userPromptMatch != nil && (phasePickerMatch == nil || userPromptMatch[0] < phasePickerMatch[0]) {
-			userInput := promptUserInput()
-			command = command[:userPromptMatch[0]] + userInput + command[userPromptMatch[1]:]
-			titleString = titleString[:titleUserPromptMatch[0]] + userInput + titleString[titleUserPromptMatch[1]:]
-		} else if phasePickerMatch != nil {
-			phaseNumber := command[phasePickerMatch[2]:phasePickerMatch[3]]
-			selectedFile, selectedFilePath := promptPhaseFilePicker(phaseNumber, parentFolder)
-			// command = command[:phasePickerMatch[0]] + selectedFile + command[phasePickerMatch[1]:]
-
-			content, err := ioutil.ReadFile(selectedFilePath)
+			replacement, err := ch.handler(command[match[0]:match[1]])
 			if err != nil {
-				fmt.Printf("Error reading file: %v\n", err)
+				fmt.Printf("Error handling command: %v\n", err)
 				return "", ""
 			}
 
-			command = command[:phasePickerMatch[0]] + string(content) + command[phasePickerMatch[1]:]
-
-			// replace {phase_NUMBER__file_picker} with the selected file name
-			titleString = titleString[:titlePhasePickerMatch[0]] + selectedFile + titleString[titlePhasePickerMatch[1]:]
+			command = command[:match[0]] + replacement + command[match[1]:]
+			titleString = titleString[:titleMatch[0]] + replacement + titleString[titleMatch[1]:]
 		}
 	}
 
 	return command, titleString
+}
+
+func handleUserPrompt(_ string) (string, error) {
+	userInput := promptUserInput()
+	return userInput, nil
+}
+
+func handlePhasePicker(match string, parentFolder string) (string, error) {
+	phasePickerRegex := regexp.MustCompile(`\{phase_(\d+)__file_picker\}`)
+	phasePickerMatch := phasePickerRegex.FindStringSubmatch(match)
+	phaseNumber := phasePickerMatch[1]
+
+	_, selectedFilePath := promptPhaseFilePicker(phaseNumber, parentFolder)
+
+	content, err := ioutil.ReadFile(selectedFilePath)
+	if err != nil {
+		return "", fmt.Errorf("error reading file: %w", err)
+	}
+
+	// remove yml from content
+	content = bytes.Replace(content, []byte("---\n"), []byte(""), 1)
+
+	return string(content), nil
+}
+
+func handleClipboard(_ string) (string, error) {
+
+	clipboardContent, err := clipboard.ReadAll()
+	if err != nil {
+		return "", fmt.Errorf("error reading from clipboard: %w", err)
+	}
+	return clipboardContent, nil
 }
 
 func promptPhaseFilePicker(phaseNumber, parentFolder string) (string, string) {

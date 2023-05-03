@@ -86,6 +86,12 @@
 			"description": "custom prompt (with file picker)"
 		},
 		{
+			"orbit": 1,
+			"command": "{user_prompt} {clipboard}",
+			"name": "clipboard",
+			"description": "custom prompt (with clipboard)"
+		},
+		{
 			"from": 1,
 			"to": 2,
 			"command": "{user_prompt}",
