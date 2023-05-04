@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -378,7 +377,7 @@ func displayCommands(commands []Command) *Command {
 func executeCommand(command *Command, parentFolder string, phase string) {
 
 	// Get user inputs and put them into the command template
-	interpolatedCommand, interpolatedTitle := interpolateCommand(command.Command, parentFolder)
+	interpolatedCommand, _ := interpolateCommand(command.Command, parentFolder)
 
 	println("early ", earlyReturnFlag)
 	if earlyReturnFlag {
@@ -418,11 +417,12 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 
 	commandHandlers := []struct {
 		regex   *regexp.Regexp
-		handler func(string) (string, error)
+		handler func(string, string) (string, string, error)
 	}{
 		{regexp.MustCompile(`\{user_prompt\}`), handleUserPrompt},
-		{regexp.MustCompile(`\{phase_(\d+)__file_picker\}`), func(match string) (string, error) { return handlePhasePicker(match, parentFolder) }},
+		{regexp.MustCompile(`\{phase_(\d+)__file_picker\}`), handlePhasePicker},
 		{regexp.MustCompile(`\{clipboard\}`), handleClipboard},
+		{regexp.MustCompile(`\{phase_(\d+)__file_picker_name\}`), handlePhasePickerName},
 	}
 
 	titleString := command
@@ -436,7 +436,10 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 				break
 			}
 
-			replacement, err := ch.handler(command[match[0]:match[1]])
+			replacement, fileName, err := ch.handler(command[match[0]:match[1]], parentFolder)
+
+			// println("replacement ", replacement)
+
 			if err != nil {
 				fmt.Printf("Error handling command: %v\n", err)
 				return "", ""
@@ -444,26 +447,22 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 
 			command = command[:match[0]] + replacement + command[match[1]:]
 
-			// // if str starts with FILEPICKER, extract filename (before the ::)
-			if strings.HasPrefix(replacement, "FILEPICKER") {
-				// // get the filename
-				filename := strings.Split(replacement, "::")[1]
-				titleString = titleString[:titleMatch[0]] + filename + titleString[titleMatch[1]:]
-			} else {
-				titleString = titleString[:titleMatch[0]] + replacement + titleString[titleMatch[1]:]
-			}
+			titleString = titleString[:titleMatch[0]] + fileName + titleString[titleMatch[1]:]
+
 		}
 	}
 
+	println("command: " + command)
+	println("titleString: " + titleString)
 	return command, titleString
 }
 
-func handleUserPrompt(_ string) (string, error) {
+func handleUserPrompt(_ string, _ string) (string, string, error) {
 	userInput := promptUserInput()
-	return userInput, nil
+	return userInput, "", nil
 }
 
-func handlePhasePicker(match string, parentFolder string) (string, error) {
+func handlePhasePicker(match string, parentFolder string) (string, string, error) {
 
 	phasePickerRegex := regexp.MustCompile(`\{phase_(\d+)__file_picker\}`)
 	phasePickerMatch := phasePickerRegex.FindStringSubmatch(match)
@@ -471,27 +470,35 @@ func handlePhasePicker(match string, parentFolder string) (string, error) {
 
 	_, selectedFilePath := promptPhaseFilePicker(phaseNumber, parentFolder)
 
-	// title of the file
-	fileName := filepath.Base(selectedFilePath)
-
 	content, err := ioutil.ReadFile(selectedFilePath)
 	if err != nil {
-		return "", fmt.Errorf("error reading file: %w", err)
+		return "", "", fmt.Errorf("error reading file: %w", err)
 	}
 
-	// remove yml from content using regex
+	// Remove YAML front matter from content using regex
 	content = regexp.MustCompile(`(?m)^---\n(.|\n)*---\n`).ReplaceAll(content, []byte(""))
 
-	return "FILEPICKER" + fileName + "::" + string(content), nil
+	return string(content), selectedFilePath, nil
 }
 
-func handleClipboard(_ string) (string, error) {
+func handlePhasePickerName(match string, parentFolder string) (string, string, error) {
+
+	phasePickerNameRegex := regexp.MustCompile(`\{phase_(\d+)__file_picker_name\}`)
+	phasePickerNameMatch := phasePickerNameRegex.FindStringSubmatch(match)
+	phaseNumber := phasePickerNameMatch[1]
+
+	_, selectedFilePath := promptPhaseFilePicker(phaseNumber, parentFolder)
+
+	return selectedFilePath, "", nil
+}
+
+func handleClipboard(_ string, _ string) (string, string, error) {
 
 	clipboardContent, err := clipboard.ReadAll()
 	if err != nil {
-		return "", fmt.Errorf("error reading from clipboard: %w", err)
+		return "", "", fmt.Errorf("error reading from clipboard: %w", err)
 	}
-	return clipboardContent, nil
+	return clipboardContent, "", nil
 }
 
 func promptPhaseFilePicker(phaseNumber, parentFolder string) (string, string) {
