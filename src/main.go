@@ -1,13 +1,16 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -377,9 +380,8 @@ func displayCommands(commands []Command) *Command {
 func executeCommand(command *Command, parentFolder string, phase string) {
 
 	// Get user inputs and put them into the command template
-	interpolatedCommand, _ := interpolateCommand(command.Command, parentFolder)
+	interpolatedCommand, interpolatedTitle := interpolateCommand(command.Command, parentFolder)
 
-	println("early ", earlyReturnFlag)
 	if earlyReturnFlag {
 		os.Exit(1)
 	}
@@ -399,7 +401,7 @@ func executeCommand(command *Command, parentFolder string, phase string) {
 	yaml := "---\n" +
 		"title: " + summary + "\n" +
 		"phase: " + phase + "\n" +
-		"command: " + string(command.Command) + "\n" +
+		"command: " + "\"" + interpolatedTitle + "\"" + "\n" +
 		"time: " + time.Now().Format("2006-01-02 15:04:05") + "\n" +
 		"---\n\n"
 
@@ -409,20 +411,104 @@ func executeCommand(command *Command, parentFolder string, phase string) {
 
 	// Save the content to a file with the inferred title
 	saveToFile(inferredTitle, yaml+fullres, parentFolder, phase)
+
+	// Save command to history
+	saveToHistory(inferredTitle, parentFolder, interpolatedTitle, phase)
+
+	// Open the file in the default editor
+	// openFile(inferredTitle, parentFolder, phase)
+}
+
+type History struct {
+	Title   string `json:"title"`
+	Command string `json:"command"`
+	Phase   string `json:"phase"`
+	Time    string `json:"time"`
+}
+
+func saveToHistory(title string, parentFolder string, command string, phase string) {
+	// Save the content to a file with the inferred title
+
+	// save args to json object
+	history := History{
+		Title:   title,
+		Command: command,
+		Phase:   phase,
+		Time:    time.Now().Format("2006-01-02 15:04:05"),
+	}
+
+	filePath := filepath.Join(parentFolder, "history.json")
+
+	// Read current content in history.json if it exists
+	var historyList []History
+	if _, err := os.Stat(filePath); err == nil {
+		// Read the file
+		historyJson, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			fmt.Printf("Error reading file: %v\n", err)
+			return
+		}
+
+		// Convert json to history list
+		err = json.Unmarshal(historyJson, &historyList)
+		if err != nil {
+			fmt.Printf("Error converting json to history list: %v\n", err)
+			return
+		}
+	}
+
+	// Append new history to the list
+	historyList = append(historyList, history)
+
+	// Convert history list to json
+	// historyJson, err := json.Marshal(historyList)
+	// if err != nil {
+	// 	fmt.Printf("Error converting history to json: %v\n", err)
+	// 	return
+	// }
+
+	// pretty print json
+	prettyHistoryJson, err := json.MarshalIndent(historyList, "", "    ")
+	if err != nil {
+		fmt.Printf("Error pretty printing history json: %v\n", err)
+	}
+
+	// Save the json to history.json
+	err = ioutil.WriteFile(filePath, []byte(prettyHistoryJson), 0644)
+	if err != nil {
+		fmt.Printf("Error saving file: %v\n", err)
+		return
+	}
+
+}
+
+func openFile(title string, parentFolder string, phase string) {
+	// Open the file in the default editor
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+
+	// Open the file in the default editor
+	cmd := exec.Command(editor, parentFolder+"/"+title)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Run()
 }
 
 func interpolateCommand(command string, parentFolder string) (string, string) {
-	println("command ", command)
-	catchCTRLC()
+	// catchCTRLC()
 
 	commandHandlers := []struct {
 		regex   *regexp.Regexp
-		handler func(string, string) (string, string, error)
+		handler func(string) (string, error)
 	}{
 		{regexp.MustCompile(`\{user_prompt\}`), handleUserPrompt},
-		{regexp.MustCompile(`\{phase_(\d+)__file_picker\}`), handlePhasePicker},
+		{regexp.MustCompile(`\{phase_(\d+)__file_picker\}`), func(match string) (string, error) {
+			return handlePhasePicker(match, parentFolder)
+		}},
 		{regexp.MustCompile(`\{clipboard\}`), handleClipboard},
-		{regexp.MustCompile(`\{phase_(\d+)__file_picker_name\}`), handlePhasePickerName},
 	}
 
 	titleString := command
@@ -430,39 +516,61 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 	for _, ch := range commandHandlers {
 		for {
 			match := ch.regex.FindStringIndex(command)
-			titleMatch := ch.regex.FindStringIndex(titleString)
 
 			if match == nil {
 				break
 			}
 
-			replacement, fileName, err := ch.handler(command[match[0]:match[1]], parentFolder)
-
-			// println("replacement ", replacement)
+			replacement, err := ch.handler(command[match[0]:match[1]])
 
 			if err != nil {
 				fmt.Printf("Error handling command: %v\n", err)
 				return "", ""
 			}
 
-			command = command[:match[0]] + replacement + command[match[1]:]
+			if command[match[0]:match[1]] == "{phase_1__file_picker}" || command[match[0]:match[1]] == "{phase_2__file_picker}" || command[match[0]:match[1]] == "{phase_3__file_picker}" || command[match[0]:match[1]] == "{phase_4__file_picker}" {
 
-			titleString = titleString[:titleMatch[0]] + fileName + titleString[titleMatch[1]:]
+				escapeQuotes := strings.ReplaceAll(replacement, "\"", "\\\"")
+
+				titleString = titleString[:match[0]] + escapeQuotes + titleString[match[1]:]
+
+				fileContent, err := readContentFromFile(replacement)
+
+				if err != nil {
+					fmt.Printf("Error reading file %v\n", err)
+				}
+
+				command = command[:match[0]] + fileContent + command[match[1]:]
+			} else {
+				escapeQuotes := strings.ReplaceAll(replacement, "\"", "\\\"")
+				titleString = titleString[:match[0]] + escapeQuotes + titleString[match[1]:]
+				command = command[:match[0]] + replacement + command[match[1]:]
+			}
 
 		}
 	}
 
-	println("command: " + command)
-	println("titleString: " + titleString)
 	return command, titleString
 }
 
-func handleUserPrompt(_ string, _ string) (string, string, error) {
+func handleUserPrompt(_ string) (string, error) {
 	userInput := promptUserInput()
-	return userInput, "", nil
+	return userInput, nil
 }
 
-func handlePhasePicker(match string, parentFolder string) (string, string, error) {
+func readContentFromFile(filePath string) (string, error) {
+	content, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("error reading file: %w", err)
+	}
+
+	// remove yml from content using regex
+	content = regexp.MustCompile(`(?m)^---\n(.|\n)*---\n`).ReplaceAll(content, []byte(""))
+
+	return string(content), nil
+}
+
+func handlePhasePicker(match string, parentFolder string) (string, error) {
 
 	phasePickerRegex := regexp.MustCompile(`\{phase_(\d+)__file_picker\}`)
 	phasePickerMatch := phasePickerRegex.FindStringSubmatch(match)
@@ -470,35 +578,16 @@ func handlePhasePicker(match string, parentFolder string) (string, string, error
 
 	_, selectedFilePath := promptPhaseFilePicker(phaseNumber, parentFolder)
 
-	content, err := ioutil.ReadFile(selectedFilePath)
-	if err != nil {
-		return "", "", fmt.Errorf("error reading file: %w", err)
-	}
-
-	// Remove YAML front matter from content using regex
-	content = regexp.MustCompile(`(?m)^---\n(.|\n)*---\n`).ReplaceAll(content, []byte(""))
-
-	return string(content), selectedFilePath, nil
+	return selectedFilePath, nil
 }
 
-func handlePhasePickerName(match string, parentFolder string) (string, string, error) {
-
-	phasePickerNameRegex := regexp.MustCompile(`\{phase_(\d+)__file_picker_name\}`)
-	phasePickerNameMatch := phasePickerNameRegex.FindStringSubmatch(match)
-	phaseNumber := phasePickerNameMatch[1]
-
-	_, selectedFilePath := promptPhaseFilePicker(phaseNumber, parentFolder)
-
-	return selectedFilePath, "", nil
-}
-
-func handleClipboard(_ string, _ string) (string, string, error) {
+func handleClipboard(_ string) (string, error) {
 
 	clipboardContent, err := clipboard.ReadAll()
 	if err != nil {
-		return "", "", fmt.Errorf("error reading from clipboard: %w", err)
+		return "", fmt.Errorf("error reading from clipboard: %w", err)
 	}
-	return clipboardContent, "", nil
+	return clipboardContent, nil
 }
 
 func promptPhaseFilePicker(phaseNumber, parentFolder string) (string, string) {
@@ -585,7 +674,6 @@ func saveToFile(title string, content string, parentFolder string, phaseNumber s
 	}
 
 	filePath := filepath.Join(parentFolder, folderName, title)
-	println(filePath)
 
 	err := ioutil.WriteFile(filePath, []byte(content), 0644)
 	if err != nil {
