@@ -49,10 +49,10 @@
 		},
 		{
 			"orbit": 1,
-			"command": "blah blah {user_prompt} {phase_1__file_picker}",
+			"command": "{user_prompt} on this text:\n\n {phase_1__file_picker}",
 			"prompt": true,
-			"name": "blah",
-			"description": "this is a long description for blah"
+			"name": "run_custom_command_on_file",
+			"description": "choose a file and run a command on it"
 		},
 		{
 			"orbit": 2,

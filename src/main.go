@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -29,7 +28,7 @@ func main() {
 	catchCTRLC()
 	var rootCmd = &cobra.Command{
 		Use:   "moon",
-		Short: "Moon is a CLI tool for using LLMs to phase ideas to programs",
+		Short: "A CLI from the moon, beamed directly to your terminal",
 	}
 
 	rootCmd.PersistentFlags().StringVar(&openAPIKey, "openAPIKey", "", "OPENAI API KEY [Required]")
@@ -38,7 +37,7 @@ func main() {
 		rootCmd.PersistentFlags().Set("openAPIKey", envVar)
 	}
 
-	rootCmd.AddCommand(newCmd, phaseCmd, orbitCmd, explainCmd, readMeCmd)
+	rootCmd.AddCommand(newCmd, orbitCmd, readMeCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -90,54 +89,6 @@ func readMe(cmd *cobra.Command, args []string) {
 	}
 }
 
-// explainCmd
-var explainCmd = &cobra.Command{
-	Use:   "explain",
-	Short: "Explain the phases of a project (located in moon.config.json > descriptions)",
-	Run:   explain,
-}
-
-func explain(cmd *cobra.Command, args []string) {
-	config, err := ReadConfig("moon.config.json")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	// "descriptions": {
-	// 	"0": "Phase 0 description",
-	// 	"1": "Phase 1 description",
-	// 	"2": "Phase 2 description",
-	// 	"3": "Phase 3 description",
-	// 	"4": "Phase 4 description"
-	// }
-
-	// loop through the descriptions keys and print them out use moon emoji for the phases
-	// 0: 🌑 Phase 0 description
-	// 1: 🌒 Phase 1 description
-	// 2: 🌓 Phase 2 description
-	// 3: 🌔 Phase 3 description
-	// 4: 🌕 Phase 4 description
-
-	for _, description := range config.Descriptions {
-
-		emoji := "🌑"
-		switch description.Phase {
-		case 1:
-			emoji = "🌒"
-		case 2:
-			emoji = "🌓"
-		case 3:
-			emoji = "🌔"
-		case 4:
-			emoji = "🌕"
-		}
-
-		fmt.Printf("%s: %s\n", emoji, description.Description)
-	}
-
-}
-
 // newCmd
 // Create a new command called "new" that runs the newProject function
 var newCmd = &cobra.Command{
@@ -149,25 +100,21 @@ var newCmd = &cobra.Command{
 }
 
 func init() {
-	newCmd.AddCommand(newChatCmd)
 }
 
 func newProject(cmd *cobra.Command, args []string) {
-	if len(args) < 1 {
-		fmt.Println("Please provide a project name.")
+	// get current working directory
+	cwd, err := os.Getwd()
+
+	if err != nil {
+		fmt.Printf("Error getting current working directory: %v\n", err)
 		return
 	}
 
-	projectName := args[0]
-	if err := os.Mkdir(projectName, 0755); err != nil {
-		fmt.Printf("Error creating project directory: %s, %v\n", projectName, err)
-		return
-	}
-
-	folderNames := []string{"🌑", "🌒", "🌓", "🌔", "🌕"}
+	folderNames := []string{"moon"}
 
 	for _, folderName := range folderNames {
-		fullPath := filepath.Join(projectName, folderName)
+		fullPath := filepath.Join(cwd, folderName)
 		if err := os.Mkdir(fullPath, 0755); err != nil {
 			fmt.Printf("Error creating directory: %s, %v\n", fullPath, err)
 			return
@@ -177,59 +124,27 @@ func newProject(cmd *cobra.Command, args []string) {
 	configContent := `{
         commands: [
             {
-                from: 1,
-                to: 3,
-                command: "blah blah {user_prompt} {phase3.md} {phase1.md}",
-                prompt: true,
-                name: "blah",
-                description: "this is a long description for blah"
-            },
-            {
-                from: 1,
-                to: 1,
-                command: "write a fix for {user_prompt}",
-                name: "name",
-                "description": "fixes x,y,z"
+                command: "{user_prompt} {file_picker}",
+                name: "custom + file picker",
+                description: "custom command with file picker"
             }
         ]
     }`
 
-	configPath := filepath.Join(projectName, "moon.config.json")
+	configPath := filepath.Join(cwd, "moon.config.json")
 	if err := ioutil.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		fmt.Printf("Error creating moon.config.js: %v\n", err)
 		return
 	}
 
+	// create a history file
+	historyPath := filepath.Join(cwd, "moon.history.json")
+	if err := ioutil.WriteFile(historyPath, []byte("{}"), 0644); err != nil {
+		fmt.Printf("Error creating moon.history.json: %v\n", err)
+		return
+	}
+
 	fmt.Println("New project structure created successfully.")
-}
-
-// newChatCmd
-var newChatCmd = &cobra.Command{
-	Use:   "chat",
-	Short: "Create a new chat",
-	Run:   newChat,
-}
-
-func newChat(cmd *cobra.Command, args []string) {
-	// Implement the new chat logic here
-}
-
-// chatCmd
-var chatCmd = &cobra.Command{
-	Use:   "chat",
-	Short: "Interact with a chat",
-	Run:   chat,
-}
-
-func chat(cmd *cobra.Command, args []string) {
-	// Implement the chat logic here
-}
-
-// phaseCmd
-var phaseCmd = &cobra.Command{
-	Use:   "phase",
-	Short: "Manage phases",
-	Run:   phase,
 }
 
 func catchCTRLC() {
@@ -242,64 +157,14 @@ func catchCTRLC() {
 	}()
 }
 
-func phase(cmd *cobra.Command, args []string) {
-	from, _ := cmd.Flags().GetInt("from")
-	to, _ := cmd.Flags().GetInt("to")
-	parentFolder, _ := cmd.Flags().GetString("parentFolder")
-	if parentFolder == "" {
-		parentFolder = "."
-	}
-
-	if from == 0 || to == 0 {
-		fmt.Println("Please provide --from and --to flags with valid phase numbers (1, 2, 3, 4)")
-		return
-	}
-
-	config, err := ReadConfig("moon.config.json")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	// Filter commands based on --from and --to flags
-	filteredCommands := filterCommands(config.Commands, from, to)
-
-	// Display the filtered commands and execute the selected one
-	selectedCommand := displayCommands(filteredCommands)
-	if selectedCommand == nil {
-		fmt.Println("No command selected")
-		return
-	}
-
-	strTo := strconv.Itoa(to)
-
-	executeCommand(selectedCommand, parentFolder, strTo)
-}
-
 // orbitCmd
 var orbitCmd = &cobra.Command{
 	Use:   "orbit",
-	Short: "Orbit options",
+	Short: "Choose a command from moon.config.json to run against",
 	Run:   orbit,
 }
 
 func orbit(cmd *cobra.Command, args []string) {
-	if len(args) == 0 {
-		fmt.Println("Please provide a valid orbit number (1, 2, 3, 4)")
-		return
-	}
-
-	// flag --parentFolder optional current folder if not provided
-	parentFolder, _ := cmd.Flags().GetString("parentFolder")
-	if parentFolder == "" {
-		parentFolder = "."
-	}
-
-	number, err := strconv.Atoi(args[0])
-	if err != nil || (number < 1 || number > 4) {
-		fmt.Println("Please provide a valid orbit number (1, 2, 3, 4)")
-		return
-	}
 
 	config, err := ReadConfig("moon.config.json")
 	if err != nil {
@@ -307,11 +172,8 @@ func orbit(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Filter commands based on the orbit number
-	filteredCommands := filterOrbitCommands(config.Commands, number)
-
 	// Display the filtered commands and execute the selected one
-	selectedCommand := displayCommands(filteredCommands)
+	selectedCommand := displayCommands(config.Commands)
 	if selectedCommand == nil {
 		fmt.Println("No command selected")
 		return
@@ -321,25 +183,8 @@ func orbit(cmd *cobra.Command, args []string) {
 }
 
 func init() {
-	newChatCmd.Flags().Int("start", 0, "Start phase (1, 2, 3, 4)")
-	newChatCmd.Flags().Bool("insert", false, "Open a select to choose files to put into chat")
-	chatCmd.Flags().String("file", "", "File to chat with")
-	phaseCmd.Flags().Int("from", 0, "From phase (1, 2, 3, 4)")
-	phaseCmd.Flags().Int("to", 0, "To phase (1, 2, 3, 4)")
-	phaseCmd.Flags().String("parentFolder", "", "Parent folder")
 	orbitCmd.Flags().Int("number", 0, "Orbit number (1, 2, 3, 4)")
 	orbitCmd.Flags().String("parentFolder", "", "Parent folder")
-	readMeCmd.Flags().String("parentFolder", "", "Parent folder")
-}
-
-func filterCommands(commands []Command, from, to int) []Command {
-	var filtered []Command
-	for _, cmd := range commands {
-		if cmd.From == from && cmd.To == to {
-			filtered = append(filtered, cmd)
-		}
-	}
-	return filtered
 }
 
 func filterOrbitCommands(commands []Command, orbit int) []Command {
@@ -498,20 +343,19 @@ func openFile(title string, parentFolder string, phase string) {
 }
 
 func interpolateCommand(command string, parentFolder string) (string, string) {
-	// catchCTRLC()
+
+	titleString := command
 
 	commandHandlers := []struct {
 		regex   *regexp.Regexp
 		handler func(string) (string, error)
 	}{
 		{regexp.MustCompile(`\{user_prompt\}`), handleUserPrompt},
-		{regexp.MustCompile(`\{phase_(\d+)__file_picker\}`), func(match string) (string, error) {
-			return handlePhasePicker(match, parentFolder)
+		{regexp.MustCompile(`\{file_picker\}`), func(match string) (string, error) {
+			return handlePhasePicker()
 		}},
 		{regexp.MustCompile(`\{clipboard\}`), handleClipboard},
 	}
-
-	titleString := command
 
 	for _, ch := range commandHandlers {
 		for {
@@ -528,7 +372,7 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 				return "", ""
 			}
 
-			if command[match[0]:match[1]] == "{phase_1__file_picker}" || command[match[0]:match[1]] == "{phase_2__file_picker}" || command[match[0]:match[1]] == "{phase_3__file_picker}" || command[match[0]:match[1]] == "{phase_4__file_picker}" {
+			if command[match[0]:match[1]] == "{file_picker}" {
 
 				escapeQuotes := strings.ReplaceAll(replacement, "\"", "\\\"")
 
@@ -570,13 +414,9 @@ func readContentFromFile(filePath string) (string, error) {
 	return string(content), nil
 }
 
-func handlePhasePicker(match string, parentFolder string) (string, error) {
+func handlePhasePicker() (string, error) {
 
-	phasePickerRegex := regexp.MustCompile(`\{phase_(\d+)__file_picker\}`)
-	phasePickerMatch := phasePickerRegex.FindStringSubmatch(match)
-	phaseNumber := phasePickerMatch[1]
-
-	_, selectedFilePath := promptPhaseFilePicker(phaseNumber, parentFolder)
+	_, selectedFilePath := promptPhaseFilePicker()
 
 	return selectedFilePath, nil
 }
@@ -590,14 +430,36 @@ func handleClipboard(_ string) (string, error) {
 	return clipboardContent, nil
 }
 
-func promptPhaseFilePicker(phaseNumber, parentFolder string) (string, string) {
-	folderName := phaseFolderName(phaseNumber)
-	if folderName == "" {
+func moonFolder() string {
+	// get working_dir/moon
+	workingDir, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Error getting working directory: %v\n", err)
+		return ""
+	}
+
+	moonFolder := filepath.Join(workingDir, "moon")
+
+	// create moon folder if it doesn't exist
+	if _, err := os.Stat(moonFolder); os.IsNotExist(err) {
+		err = os.Mkdir(moonFolder, 0755)
+		if err != nil {
+			fmt.Printf("Error creating moon folder: %v\n", err)
+			return ""
+		}
+	}
+
+	return moonFolder
+}
+
+func promptPhaseFilePicker() (string, string) {
+	workingDir, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Error getting working directory: %v\n", err)
 		return "", ""
 	}
 
-	phaseFolderPath := filepath.Join(parentFolder, folderName)
-	files, err := ioutil.ReadDir(phaseFolderPath)
+	files, err := ioutil.ReadDir(workingDir)
 	if err != nil {
 		fmt.Printf("Error reading phase folder: %v\n", err)
 		return "", ""
@@ -611,7 +473,7 @@ func promptPhaseFilePicker(phaseNumber, parentFolder string) (string, string) {
 	}
 
 	prompt := promptui.Select{
-		Label: "Select a file from phase " + phaseNumber,
+		Label: "Select a file",
 		Items: fileList,
 	}
 
@@ -624,24 +486,7 @@ func promptPhaseFilePicker(phaseNumber, parentFolder string) (string, string) {
 		return "", ""
 	}
 
-	return selectedFile, filepath.Join(phaseFolderPath, selectedFile)
-}
-
-func phaseFolderName(phaseNumber string) string {
-	switch phaseNumber {
-	case "0":
-		return "🌑"
-	case "1":
-		return "🌒"
-	case "2":
-		return "🌓"
-	case "3":
-		return "🌔"
-	case "4":
-		return "🌕"
-	default:
-		return ""
-	}
+	return selectedFile, filepath.Join(workingDir, selectedFile)
 }
 
 func callLLM(input string) string {
@@ -667,7 +512,7 @@ func promptUserInput() string {
 }
 
 func saveToFile(title string, content string, parentFolder string, phaseNumber string) {
-	folderName := phaseFolderName(phaseNumber)
+	folderName := moonFolder()
 	if folderName == "" {
 		fmt.Printf("Invalid phase number: %s\n", phaseNumber)
 		return
