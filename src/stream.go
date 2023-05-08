@@ -76,11 +76,11 @@ func ssereq(prompt string) string {
 	defer resp.Body.Close()
 
 	// Create a file to write the received tokens
-	file, err := os.Create("tokens.txt")
-	if err != nil {
-		log.Fatalf("Error creating file: %v", err)
-	}
-	defer file.Close()
+	// file, err := os.Create("tokens.txt")
+	// if err != nil {
+	// 	log.Fatalf("Error creating file: %v", err)
+	// }
+	// defer file.Close()
 
 	// Get the current working directory and construct the file path
 	// wd, err := os.Getwd()
@@ -126,26 +126,23 @@ func ssereq(prompt string) string {
 			}
 
 			// Write the delta.content to the file
-			_, err = file.WriteString(sseData.Choices[0].Delta.Content)
-			if err != nil {
-				log.Fatalf("Error writing to file: %v", err)
-			}
+			// _, err = file.WriteString(sseData.Choices[0].Delta.Content)
+			// if err != nil {
+			// 	log.Fatalf("Error writing to file: %v", err)
+			// }
+
+			// Flush the file buffer to disk to ensure immediate update
+			// err = file.Sync()
+			// if err != nil {
+			// 	log.Fatalf("Error syncing file: %v", err)
+			// }
 
 			fulltext += sseData.Choices[0].Delta.Content
 			// print token to console
 			fmt.Print(sseData.Choices[0].Delta.Content)
 
-			// Flush the file buffer to disk to ensure immediate update
-			err = file.Sync()
-			if err != nil {
-				log.Fatalf("Error syncing file: %v", err)
-			}
 		}
 	}
-
-	fmt.Println("done")
-
-	// fmt.Println("Tokens written to file successfully.")
 
 	return fulltext
 }

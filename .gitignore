@@ -1,2 +1,4 @@
 .env
 src/test/*
+src/moons/*
+src/moon-test/*

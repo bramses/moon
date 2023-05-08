@@ -24,6 +24,8 @@ var (
 	envVar          string
 )
 
+var FOLDER_NAME = "moons"
+
 func main() {
 	catchCTRLC()
 	var rootCmd = &cobra.Command{
@@ -92,10 +94,9 @@ func readMe(cmd *cobra.Command, args []string) {
 // newCmd
 // Create a new command called "new" that runs the newProject function
 var newCmd = &cobra.Command{
-	Use:   "new [project_name]",
-	Short: "Create a new project",
-	Long:  `Create a new project with the specified structure and configuration file.`,
-	Args:  cobra.MinimumNArgs(1),
+	Use:   "new",
+	Short: "Create a new moon folder inside working dir",
+	Long:  `Create a new moon folder and configuration files.`,
 	Run:   newProject,
 }
 
@@ -111,7 +112,7 @@ func newProject(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	folderNames := []string{"moon"}
+	folderNames := []string{FOLDER_NAME}
 
 	for _, folderName := range folderNames {
 		fullPath := filepath.Join(cwd, folderName)
@@ -122,23 +123,24 @@ func newProject(cmd *cobra.Command, args []string) {
 	}
 
 	configContent := `{
-        commands: [
-            {
-                command: "{user_prompt} {file_picker}",
-                name: "custom + file picker",
-                description: "custom command with file picker"
-            }
-        ]
-    }`
+		"commands": [
+		  {
+			"command": "{user_prompt} {file_picker}",
+			"name": "custom + file picker",
+			"description": "custom command with file picker"
+		  }
+		]
+	  }
+	  `
 
-	configPath := filepath.Join(cwd, "moon.config.json")
+	configPath := filepath.Join(cwd, FOLDER_NAME, "moon.config.json")
 	if err := ioutil.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		fmt.Printf("Error creating moon.config.js: %v\n", err)
 		return
 	}
 
 	// create a history file
-	historyPath := filepath.Join(cwd, "moon.history.json")
+	historyPath := filepath.Join(cwd, FOLDER_NAME, "moon.history.json")
 	if err := ioutil.WriteFile(historyPath, []byte("{}"), 0644); err != nil {
 		fmt.Printf("Error creating moon.history.json: %v\n", err)
 		return
@@ -166,7 +168,10 @@ var orbitCmd = &cobra.Command{
 
 func orbit(cmd *cobra.Command, args []string) {
 
-	config, err := ReadConfig("moon.config.json")
+	folderPath := moonFolder()
+	println(filepath.Join(folderPath, "moon.config.json"))
+
+	config, err := ReadConfig(filepath.Join(folderPath, "moon.config.json"))
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -179,22 +184,11 @@ func orbit(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	executeCommand(selectedCommand, parentFolder, args[0])
+	executeCommand(selectedCommand)
 }
 
 func init() {
-	orbitCmd.Flags().Int("number", 0, "Orbit number (1, 2, 3, 4)")
 	orbitCmd.Flags().String("parentFolder", "", "Parent folder")
-}
-
-func filterOrbitCommands(commands []Command, orbit int) []Command {
-	var filtered []Command
-	for _, cmd := range commands {
-		if cmd.Orbit == orbit {
-			filtered = append(filtered, cmd)
-		}
-	}
-	return filtered
 }
 
 func displayCommands(commands []Command) *Command {
@@ -222,10 +216,10 @@ func displayCommands(commands []Command) *Command {
 	return &commands[index]
 }
 
-func executeCommand(command *Command, parentFolder string, phase string) {
+func executeCommand(command *Command) {
 
 	// Get user inputs and put them into the command template
-	interpolatedCommand, interpolatedTitle := interpolateCommand(command.Command, parentFolder)
+	interpolatedCommand, interpolatedTitle := interpolateCommand(command.Command)
 
 	if earlyReturnFlag {
 		os.Exit(1)
@@ -240,12 +234,16 @@ func executeCommand(command *Command, parentFolder string, phase string) {
 	// Generate the inferred title
 	inferredTitle := time.Now().Format("20060102150405") + ".md"
 
+	inferPrompt := ("Infer title from the summary of the content of these messages. The title **cannot** contain any of the following characters: colon, back slash or forward slash. Just return the title. \nMessages:\n\n" + fullres)
+
 	// Get the title from the LLM API
-	summary := ssereq("Summarize the following into a file name: " + fullres)
+	summary := ssereq(inferPrompt)
+
+	// replace \" with empty string and trim final "." if it exists
+	summary = strings.Trim(strings.ReplaceAll(summary, "\"", ""), ".")
 
 	yaml := "---\n" +
 		"title: " + summary + "\n" +
-		"phase: " + phase + "\n" +
 		"command: " + "\"" + interpolatedTitle + "\"" + "\n" +
 		"time: " + time.Now().Format("2006-01-02 15:04:05") + "\n" +
 		"---\n\n"
@@ -255,10 +253,10 @@ func executeCommand(command *Command, parentFolder string, phase string) {
 	}
 
 	// Save the content to a file with the inferred title
-	saveToFile(inferredTitle, yaml+fullres, parentFolder, phase)
+	saveToFile(inferredTitle, yaml+fullres)
 
 	// Save command to history
-	saveToHistory(inferredTitle, parentFolder, interpolatedTitle, phase)
+	saveToHistory(inferredTitle, interpolatedTitle)
 
 	// Open the file in the default editor
 	// openFile(inferredTitle, parentFolder, phase)
@@ -267,22 +265,21 @@ func executeCommand(command *Command, parentFolder string, phase string) {
 type History struct {
 	Title   string `json:"title"`
 	Command string `json:"command"`
-	Phase   string `json:"phase"`
 	Time    string `json:"time"`
 }
 
-func saveToHistory(title string, parentFolder string, command string, phase string) {
+func saveToHistory(title string, command string) {
 	// Save the content to a file with the inferred title
+	moon_dir := moonFolder()
 
 	// save args to json object
 	history := History{
 		Title:   title,
 		Command: command,
-		Phase:   phase,
 		Time:    time.Now().Format("2006-01-02 15:04:05"),
 	}
 
-	filePath := filepath.Join(parentFolder, "history.json")
+	filePath := filepath.Join(moon_dir, "moon.history.json")
 
 	// Read current content in history.json if it exists
 	var historyList []History
@@ -304,13 +301,6 @@ func saveToHistory(title string, parentFolder string, command string, phase stri
 
 	// Append new history to the list
 	historyList = append(historyList, history)
-
-	// Convert history list to json
-	// historyJson, err := json.Marshal(historyList)
-	// if err != nil {
-	// 	fmt.Printf("Error converting history to json: %v\n", err)
-	// 	return
-	// }
 
 	// pretty print json
 	prettyHistoryJson, err := json.MarshalIndent(historyList, "", "    ")
@@ -342,7 +332,7 @@ func openFile(title string, parentFolder string, phase string) {
 	cmd.Run()
 }
 
-func interpolateCommand(command string, parentFolder string) (string, string) {
+func interpolateCommand(command string) (string, string) {
 
 	titleString := command
 
@@ -351,11 +341,11 @@ func interpolateCommand(command string, parentFolder string) (string, string) {
 		handler func(string) (string, error)
 	}{
 		{regexp.MustCompile(`\{user_prompt\}`), handleUserPrompt},
-		{regexp.MustCompile(`\{file_picker\}`), func(match string) (string, error) {
-			return handlePhasePicker()
-		}},
+		{regexp.MustCompile(`\{file_picker\}`), handlePhasePicker},
 		{regexp.MustCompile(`\{clipboard\}`), handleClipboard},
 	}
+
+	println("Interpolating command...")
 
 	for _, ch := range commandHandlers {
 		for {
@@ -414,7 +404,9 @@ func readContentFromFile(filePath string) (string, error) {
 	return string(content), nil
 }
 
-func handlePhasePicker() (string, error) {
+func handlePhasePicker(_ string) (string, error) {
+
+	println("calling handlePhasePicker")
 
 	_, selectedFilePath := promptPhaseFilePicker()
 
@@ -438,7 +430,7 @@ func moonFolder() string {
 		return ""
 	}
 
-	moonFolder := filepath.Join(workingDir, "moon")
+	moonFolder := filepath.Join(workingDir, FOLDER_NAME)
 
 	// create moon folder if it doesn't exist
 	if _, err := os.Stat(moonFolder); os.IsNotExist(err) {
@@ -459,34 +451,56 @@ func promptPhaseFilePicker() (string, string) {
 		return "", ""
 	}
 
-	files, err := ioutil.ReadDir(workingDir)
-	if err != nil {
-		fmt.Printf("Error reading phase folder: %v\n", err)
-		return "", ""
-	}
-
-	fileList := []string{}
-	for _, file := range files {
-		if !file.IsDir() {
-			fileList = append(fileList, file.Name())
-		}
-	}
-
-	prompt := promptui.Select{
-		Label: "Select a file",
-		Items: fileList,
-	}
-
-	_, selectedFile, err := prompt.Run()
+	selectedFile, fullPath, err := selectFileRecursively(workingDir)
 	if err != nil {
 		if err == promptui.ErrInterrupt {
 			os.Exit(-1)
 		}
-		fmt.Printf("Prompt failed %v\n", err)
+		fmt.Printf("Error selecting file %v\n", err)
 		return "", ""
 	}
 
-	return selectedFile, filepath.Join(workingDir, selectedFile)
+	return selectedFile, fullPath
+}
+
+func selectFileRecursively(path string) (string, string, error) {
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return "", "", err
+	}
+
+	items := []string{}
+	filePaths := []string{}
+	for _, file := range files {
+		item := file.Name()
+		if file.IsDir() {
+			item = "▸ " + item
+		}
+		items = append(items, item)
+		filePaths = append(filePaths, filepath.Join(path, file.Name()))
+	}
+
+	prompt := promptui.Select{
+		Label: filepath.Base(path),
+		Items: items,
+	}
+
+	selectedIndex, _, err := prompt.Run()
+	if err != nil {
+		return "", "", err
+	}
+
+	selectedPath := filePaths[selectedIndex]
+	fileInfo, err := os.Stat(selectedPath)
+	if err != nil {
+		return "", "", err
+	}
+
+	if fileInfo.IsDir() {
+		return selectFileRecursively(selectedPath)
+	}
+
+	return fileInfo.Name(), selectedPath, nil
 }
 
 func callLLM(input string) string {
@@ -511,14 +525,10 @@ func promptUserInput() string {
 	return result
 }
 
-func saveToFile(title string, content string, parentFolder string, phaseNumber string) {
+func saveToFile(title string, content string) {
 	folderName := moonFolder()
-	if folderName == "" {
-		fmt.Printf("Invalid phase number: %s\n", phaseNumber)
-		return
-	}
 
-	filePath := filepath.Join(parentFolder, folderName, title)
+	filePath := filepath.Join(folderName, title)
 
 	err := ioutil.WriteFile(filePath, []byte(content), 0644)
 	if err != nil {

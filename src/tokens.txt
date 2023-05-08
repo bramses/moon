@@ -1,1 +1,1 @@
-"MOONSCOPE - App for Real-Time Lunar Landscape Information, Database of Facts & Trivia with Augmented Reality Feature".
+"Function to Send Prompt to OpenAI GPT-3 API and Extract Delta Content via Server-Sent Events (SSE)"
