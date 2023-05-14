@@ -53,8 +53,47 @@ var readMeCmd = &cobra.Command{
 	Run:   readMe,
 }
 
-func readMe(cmd *cobra.Command, args []string) {
+// func readMe(cmd *cobra.Command, args []string) {
 
+// 	workingDir := moonFolder()
+// 	parentFolder, _ := cmd.Flags().GetString("parentFolder")
+// 	if parentFolder == "" { // set to os.Getwd() if empty
+// 		parentFolder, _ = os.Getwd()
+// 	}
+
+// 	readmeStr := ""
+
+// 	err := filepath.Walk(workingDir, func(path string, info os.FileInfo, err error) error {
+// 		if err != nil {
+// 			return err
+// 		}
+// 		if !info.IsDir() {
+// 			content, err := ioutil.ReadFile(path)
+// 			if err != nil {
+// 				return err
+// 			}
+// 			fmt.Printf("running on %s \n", content)
+// 			// fmt.Printf("%s: %s \n", path, content)
+// 			// res := ssereq("Summarize the file in README format: {h1 - title of file}\\n {summary of file content} for this content:\n" + string(content))
+// 			// readmeStr += fmt.Sprintf("# %s\n%s\n", info.Name(), res)
+// 		}
+// 		return nil
+// 	})
+// 	if err != nil {
+// 		fmt.Printf("Error walking the directory: %v\n", err)
+// 		return
+// 	}
+
+// 	// write to file workingDir/README.md
+// 	err = ioutil.WriteFile(workingDir+"/README.md", []byte(readmeStr), 0644)
+// 	if err != nil {
+// 		fmt.Printf("Error writing to file: %v\n", err)
+// 		return
+// 	}
+// }
+
+func readMe(cmd *cobra.Command, args []string) {
+	workingDir := moonFolder()
 	parentFolder, _ := cmd.Flags().GetString("parentFolder")
 	if parentFolder == "" { // set to os.Getwd() if empty
 		parentFolder, _ = os.Getwd()
@@ -62,18 +101,34 @@ func readMe(cmd *cobra.Command, args []string) {
 
 	readmeStr := ""
 
-	err := filepath.Walk(parentFolder, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(workingDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
+		println(path)
+
+		// skip moon.config.json and moon.history.json
+		if strings.Contains(path, "moon.config.json") || strings.Contains(path, "moon.history.json") || strings.Contains(path, "README.md") {
+			return nil
+		}
+
 		if !info.IsDir() {
 			content, err := ioutil.ReadFile(path)
 			if err != nil {
 				return err
 			}
 			fmt.Printf("running on %s \n", content)
-			// fmt.Printf("%s: %s \n", path, content)
-			res := ssereq("Summarize the file in README format: {h1 - title of file}\\n {summary of file content} for this content:\n" + string(content))
+
+			resChan := make(chan string, 1)
+
+			go func() {
+				res := ssereq("Summarize the file in README format: {h1 - title of file}\\n {summary of file content} for this content:\n" + string(content))
+				resChan <- res
+			}()
+
+			res := <-resChan
+
 			readmeStr += fmt.Sprintf("# %s\n%s\n", info.Name(), res)
 		}
 		return nil
@@ -83,8 +138,8 @@ func readMe(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// write to file parentFolder/README.md
-	err = ioutil.WriteFile(parentFolder+"/README.md", []byte(readmeStr), 0644)
+	// write to file workingDir/README.md
+	err = ioutil.WriteFile(workingDir+"/README.md", []byte(readmeStr), 0644)
 	if err != nil {
 		fmt.Printf("Error writing to file: %v\n", err)
 		return
