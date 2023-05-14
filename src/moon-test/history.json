@@ -1,0 +1,22 @@
+[
+    {
+        "title": "\"Defining Structs and Reading JSON Data in Go with Error Handling\"..md",
+        "command": "what is this code do /Users/bram/Dropbox/PARA/Projects/moon/src/config.go",
+        "time": "2023-05-07 20:04:21"
+    },
+    {
+        "title": "Function to Send Prompt to OpenAI GPT-3 API and Extract Delta Content via Server-Sent Events (SSE).md",
+        "command": "what does this code do /Users/bram/Dropbox/PARA/Projects/moon/src/stream.go",
+        "time": "2023-05-07 20:07:39"
+    },
+    {
+        "title": "file name: How to gracefully close an SSE connection with response.close() or body.close() in Python.md",
+        "command": "getting err in code no body.close /Users/bram/Dropbox/PARA/Projects/moon/src/moon-test/Function to Send Prompt to OpenAI GPT-3 API and Extract Delta Content via Server-Sent Events (SSE).md",
+        "time": "2023-05-07 20:19:24"
+    },
+    {
+        "title": "Parsing JSON Data to Custom Structs.md",
+        "command": "write a summary of the following /Users/bram/Dropbox/PARA/Projects/moon/src/moon-test/\\\"Defining Structs and Reading JSON Data in Go with Error Handling\\\"..md",
+        "time": "2023-05-07 20:25:31"
+    }
+]
